@@ -1,14 +1,13 @@
-import React from 'react';
-import { StatusBar } from 'expo-status-bar';
-import {CountryProvider} from "./context/locationcontext";
+import { registerRootComponent } from "expo";
+import React from "react";
+import { CountryProvider } from "./context/locationcontext";
 import MainPage from "./page/mainPage";
 
-
-export default function App() {
+function App() {
   return (
     <CountryProvider>
-      
-      <MainPage/>
+      <MainPage />
     </CountryProvider>
-);
+  );
 }
+export default registerRootComponent(App);
