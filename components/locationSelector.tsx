@@ -18,8 +18,6 @@ import {
   getCountryByCode,
 } from "../models/contact";
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
 if (
   Platform.OS === "android" &&
   UIManager.setLayoutAnimationEnabledExperimental
@@ -90,11 +88,7 @@ export default function LocationSelector({
     item: EmergencyCountry;
     index: number;
   }) => (
-    <CountryCard
-      country={item}
-      index={index}
-      onPress={chooseCountry}
-    />
+    <CountryCard country={item} index={index} onPress={chooseCountry} />
   );
 
   return (
@@ -106,16 +100,10 @@ export default function LocationSelector({
     >
       {selectedCountry && !expanded ? (
         <Pressable onPress={expandSelector} style={styles.collapsedBar}>
-          <View
-            style={[
-              styles.collapsedBadge,
-              { backgroundColor: selectedCountry.accent },
-            ]}
-          >
+          <View style={styles.collapsedBadge}>
             <Text style={styles.collapsedCode}>{selectedCountry.flag}</Text>
           </View>
           <View style={styles.collapsedTextWrap}>
-            <Text style={styles.collapsedLabel}>Current country</Text>
             <Text style={styles.collapsedTitle}>{selectedCountry.name}</Text>
           </View>
           <Ionicons name="chevron-down" size={22} color="#64748b" />
@@ -198,43 +186,53 @@ function CountryCard({
   }, [index, opacity, translate]);
 
   return (
-    <AnimatedPressable
-      onPress={() => onPress(country.code)}
-      style={({ pressed }) => [
-        styles.card,
+    <Animated.View
+      style={[
+        styles.cardShell,
         {
-          borderLeftColor: country.accent,
           opacity,
-          transform: [{ translateY: translate }, { scale: pressed ? 0.98 : 1 }],
+          transform: [{ translateY: translate }],
         },
       ]}
     >
-      <View style={styles.countryBadge}>
-        <Text style={styles.countryCode}>{country.flag}</Text>
-      </View>
-      <View style={styles.countryInfo}>
-        <Text style={styles.countryName}>{country.name}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={21} color="#94a3b8" />
-    </AnimatedPressable>
+      <Pressable
+        onPress={() => onPress(country.code)}
+        style={({ pressed }) => [
+          styles.card,
+          {
+            opacity: pressed ? 0.82 : 1,
+          },
+        ]}
+      >
+        <View style={[styles.countryIcon, { backgroundColor: `${country.accent}18` }]}>
+          <Text style={styles.countryFlag}>{country.flag}</Text>
+        </View>
+        <View style={styles.countryInfo}>
+          <Text style={styles.countryName}>{country.name}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={21} color="#94a3b8" />
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     alignItems: "center",
+    flexDirection: "row",
+    minHeight: 74,
+    padding: 14,
+  },
+  cardShell: {
     backgroundColor: "#ffffff",
     borderColor: "#e2e8f0",
     borderRadius: 8,
     borderWidth: 1,
-    flexDirection: "row",
-    marginBottom: 12,
-    minHeight: 62,
-    paddingHorizontal: 12,
+    marginBottom: 14,
     shadowColor: "#0f172a",
-    shadowOffset: { height: 8, width: 0 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
+    shadowOffset: { height: 10, width: 0 },
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
   },
   collapseButton: {
     alignItems: "center",
@@ -275,21 +273,15 @@ const styles = StyleSheet.create({
   collapsedCode: {
     fontSize: 26,
   },
-  collapsedLabel: {
-    color: "#64748b",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
   collapsedTextWrap: {
     flex: 1,
+    justifyContent: "center",
     marginLeft: 12,
   },
   collapsedTitle: {
     color: "#0f172a",
     fontSize: 18,
     fontWeight: "900",
-    marginTop: 2,
   },
   container: {
     backgroundColor: "#f8fafc",
@@ -299,27 +291,25 @@ const styles = StyleSheet.create({
   collapsedContainer: {
     paddingBottom: 12,
   },
-  countryBadge: {
+  countryIcon: {
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#e2e8f0",
     borderRadius: 8,
-    borderWidth: 1,
-    height: 46,
+    height: 50,
     justifyContent: "center",
-    marginRight: 12,
-    width: 46,
+    marginRight: 13,
+    width: 50,
   },
-  countryCode: {
-    fontSize: 26,
+  countryFlag: {
+    fontSize: 28,
   },
   countryInfo: {
     flex: 1,
+    justifyContent: "center",
   },
   countryName: {
     color: "#0f172a",
-    fontSize: 17,
-    fontWeight: "800",
+    fontSize: 18,
+    fontWeight: "900",
   },
   eyebrow: {
     color: "#ef4444",
