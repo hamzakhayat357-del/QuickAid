@@ -2,373 +2,279 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef } from "react";
 import {
   Animated,
-  FlatList,
-  LayoutAnimation,
-  Platform,
+  Easing,
   Pressable,
+  ScrollView, 
   StyleSheet,
   Text,
-  UIManager,
   View,
 } from "react-native";
 import { useCountry } from "../context/locationcontext";
 import {
-  EmergencyCountry,
   emergencyCountries,
   getCountryByCode,
 } from "../models/contact";
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
-type LocationSelectorProps = {
+type Props = {
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
 };
 
-export default function LocationSelector({
-  expanded,
-  onExpandedChange,
-}: LocationSelectorProps) {
+export default function LocationSelector({ expanded, onExpandedChange }: Props) {
   const { country, setCountry } = useCountry();
-  const selectedCountry = getCountryByCode(country);
-  const headerOpacity = useRef(new Animated.Value(0)).current;
-  const headerTranslate = useRef(new Animated.Value(16)).current;
-  const sortedCountries = [...emergencyCountries].sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
+  const selected = getCountryByCode(country);
+
+  const heightAnim = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const chevronAnim = useRef(new Animated.Value(expanded ? 1 : 0)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(headerOpacity, {
-        toValue: 1,
-        duration: 360,
-        useNativeDriver: true,
+      Animated.timing(heightAnim, {
+        toValue: expanded ? 1 : 0,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
       }),
-      Animated.spring(headerTranslate, {
-        toValue: 0,
-        damping: 16,
-        stiffness: 110,
-        useNativeDriver: true,
+      Animated.timing(chevronAnim, {
+        toValue: expanded ? 1 : 0,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
       }),
     ]).start();
-  }, [headerOpacity, headerTranslate]);
+  }, [expanded, heightAnim, chevronAnim]);
 
-  useEffect(() => {
-    if (!country) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      onExpandedChange(true);
-    }
-  }, [country, onExpandedChange]);
+  const chevronRotation = chevronAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "180deg"],
+  });
 
-  const chooseCountry = (code: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setCountry(code);
-    onExpandedChange(false);
-  };
+  // Full-screen picker when no country selected
+  if (!selected) {
+    return (
+      <View style={styles.fullScreen}>
+        <View style={styles.header}>
+          <View style={styles.headerIcon}>
+            <Ionicons name="medical" size={28} color="#fff" />
+          </View>
+          <Text style={styles.headerTitle}>QuickAid</Text>
+          <Text style={styles.headerSubtitle}>
+            Select your country to see local emergency numbers
+          </Text>
+        </View>
+        <ScrollView
+          style={styles.fullList}
+          contentContainerStyle={styles.fullListContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {emergencyCountries.map((c) => (
+            <Pressable
+              key={c.code}
+              style={({ pressed }) => [
+                styles.countryRow,
+                pressed && styles.countryRowPressed,
+              ]}
+              onPress={() => {
+                setCountry(c.code);
+                onExpandedChange(false);
+              }}
+            >
+              <Text style={styles.countryFlag}>{c.flag}</Text>
+              <View style={styles.countryInfo}>
+                <Text style={styles.countryName}>{c.name}</Text>
+                <Text style={styles.countryRegion}>{c.region}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
 
-  const expandSelector = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    onExpandedChange(true);
-  };
+  // Collapsed bar + expandable list
+  const listMaxHeight = heightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 400],
+  });
 
-  const collapseSelector = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    onExpandedChange(false);
-  };
-
-  const renderCountry = ({
-    item,
-    index,
-  }: {
-    item: EmergencyCountry;
-    index: number;
-  }) => (
-    <CountryCard
-      country={item}
-      index={index}
-      onPress={chooseCountry}
-    />
-  );
+  const listOpacity = heightAnim.interpolate({
+    inputRange: [0, 0.3, 1],
+    outputRange: [0, 0, 1],
+  });
 
   return (
-    <View
-      style={[
-        styles.container,
-        expanded ? styles.expandedContainer : styles.collapsedContainer,
-      ]}
-    >
-      {selectedCountry && !expanded ? (
-        <Pressable onPress={expandSelector} style={styles.collapsedBar}>
-          <View
-            style={[
-              styles.collapsedBadge,
-              { backgroundColor: selectedCountry.accent },
-            ]}
-          >
-            <Text style={styles.collapsedCode}>{selectedCountry.flag}</Text>
-          </View>
-          <View style={styles.collapsedTextWrap}>
-            <Text style={styles.collapsedLabel}>Current country</Text>
-            <Text style={styles.collapsedTitle}>{selectedCountry.name}</Text>
-          </View>
-          <Ionicons name="chevron-down" size={22} color="#64748b" />
-        </Pressable>
-      ) : (
-        <>
-          <Animated.View
-            style={[
-              styles.header,
-              {
-                opacity: headerOpacity,
-                transform: [{ translateY: headerTranslate }],
-              },
-            ]}
-          >
-            <View style={styles.headerTopRow}>
-              <View style={styles.iconShell}>
-                <Ionicons name="location" size={26} color="#ef4444" />
-              </View>
-              {selectedCountry ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={collapseSelector}
-                  style={styles.collapseButton}
-                >
-                  <Ionicons name="chevron-up" size={18} color="#0f172a" />
-                </Pressable>
-              ) : null}
-            </View>
-            <Text style={styles.eyebrow}>Manual location</Text>
-            <Text style={styles.title}>Choose your country</Text>
-            <Text style={styles.subtitle}>
-              QuickAid will put the most important emergency numbers first.
-            </Text>
-          </Animated.View>
+    <View style={styles.selectorContainer}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.collapsedBar,
+          pressed && { opacity: 0.85 },
+        ]}
+        onPress={() => onExpandedChange(!expanded)}
+      >
+        <Text style={styles.barFlag}>{selected.flag}</Text>
+        <Text style={styles.barName}>{selected.name}</Text>
+        <Animated.View style={{ transform: [{ rotate: chevronRotation }] }}>
+          <Ionicons name="chevron-down" size={20} color="#64748b" />
+        </Animated.View>
+      </Pressable>
 
-          <View style={styles.listWrap}>
-            <FlatList
-              contentContainerStyle={styles.list}
-              data={sortedCountries}
-              keyExtractor={(item) => item.code}
-              renderItem={renderCountry}
-              showsVerticalScrollIndicator={false}
-            />
-          </View>
-        </>
-      )}
+      <Animated.View
+        style={[
+          styles.dropdownWrapper,
+          { maxHeight: listMaxHeight, opacity: listOpacity },
+        ]}
+      >
+        <ScrollView
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+        >
+          {emergencyCountries.map((c) => (
+            <Pressable
+              key={c.code}
+              style={({ pressed }) => [
+                styles.dropdownRow,
+                c.code === country && styles.dropdownRowActive,
+                pressed && styles.countryRowPressed,
+              ]}
+              onPress={() => {
+                setCountry(c.code);
+                onExpandedChange(false);
+              }}
+            >
+              <Text style={styles.countryFlag}>{c.flag}</Text>
+              <View style={styles.countryInfo}>
+                <Text style={styles.countryName}>{c.name}</Text>
+                <Text style={styles.countryRegion}>{c.region}</Text>
+              </View>
+              {c.code === country && (
+                <Ionicons name="checkmark-circle" size={20} color={c.accent} />
+              )}
+            </Pressable>
+          ))}
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }
 
-function CountryCard({
-  country,
-  index,
-  onPress,
-}: {
-  country: EmergencyCountry;
-  index: number;
-  onPress: (code: string) => void;
-}) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translate = useRef(new Animated.Value(18)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        delay: 70 * index,
-        duration: 260,
-        useNativeDriver: true,
-      }),
-      Animated.spring(translate, {
-        toValue: 0,
-        delay: 70 * index,
-        damping: 18,
-        stiffness: 120,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [index, opacity, translate]);
-
-  return (
-    <AnimatedPressable
-      onPress={() => onPress(country.code)}
-      style={({ pressed }) => [
-        styles.card,
-        {
-          borderLeftColor: country.accent,
-          opacity,
-          transform: [{ translateY: translate }, { scale: pressed ? 0.98 : 1 }],
-        },
-      ]}
-    >
-      <View style={styles.countryBadge}>
-        <Text style={styles.countryCode}>{country.flag}</Text>
-      </View>
-      <View style={styles.countryInfo}>
-        <Text style={styles.countryName}>{country.name}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={21} color="#94a3b8" />
-    </AnimatedPressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  card: {
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: "row",
-    marginBottom: 12,
-    minHeight: 62,
-    paddingHorizontal: 12,
-    shadowColor: "#0f172a",
-    shadowOffset: { height: 8, width: 0 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-  },
-  collapseButton: {
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-    borderWidth: 1,
-    height: 42,
-    justifyContent: "center",
-    width: 42,
-  },
-  collapsedBadge: {
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-    borderWidth: 1,
-    height: 46,
-    justifyContent: "center",
-    width: 46,
-  },
-  collapsedBar: {
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: "row",
-    marginHorizontal: 18,
-    marginTop: 12,
-    minHeight: 62,
-    paddingHorizontal: 12,
-    shadowColor: "#0f172a",
-    shadowOffset: { height: 8, width: 0 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-  },
-  collapsedCode: {
-    fontSize: 26,
-  },
-  collapsedLabel: {
-    color: "#64748b",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  collapsedTextWrap: {
+  fullScreen: {
     flex: 1,
-    marginLeft: 12,
+    paddingHorizontal: 20,
+    paddingTop: 32,
   },
-  collapsedTitle: {
+  header: {
+    alignItems: "center",
+    marginBottom: 28,
+  },
+  headerIcon: {
+    alignItems: "center",
+    backgroundColor: "#ef4444",
+    borderRadius: 20,
+    height: 56,
+    justifyContent: "center",
+    width: 56,
+    marginBottom: 14,
+  },
+  headerTitle: {
     color: "#0f172a",
-    fontSize: 18,
-    fontWeight: "900",
-    marginTop: 2,
+    fontSize: 26,
+    fontWeight: "800",
   },
-  container: {
-    backgroundColor: "#f8fafc",
-    flexShrink: 0,
-    overflow: "hidden",
+  headerSubtitle: {
+    color: "#64748b",
+    fontSize: 15,
+    marginTop: 6,
+    textAlign: "center",
   },
-  collapsedContainer: {
-    paddingBottom: 12,
+  fullList: {
+    flex: 1,
   },
-  countryBadge: {
+  fullListContent: {
+    paddingBottom: 32,
+  },
+  countryRow: {
     alignItems: "center",
     backgroundColor: "#ffffff",
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-    borderWidth: 1,
-    height: 46,
-    justifyContent: "center",
-    marginRight: 12,
-    width: 46,
+    borderRadius: 14,
+    flexDirection: "row",
+    marginBottom: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  countryCode: {
-    fontSize: 26,
+  countryRowPressed: {
+    opacity: 0.7,
+  },
+  countryFlag: {
+    fontSize: 28,
+    marginRight: 14,
   },
   countryInfo: {
     flex: 1,
   },
   countryName: {
     color: "#0f172a",
-    fontSize: 17,
-    fontWeight: "800",
+    fontSize: 16,
+    fontWeight: "600",
   },
-  eyebrow: {
-    color: "#ef4444",
+  countryRegion: {
+    color: "#94a3b8",
     fontSize: 13,
-    fontWeight: "800",
-    letterSpacing: 0,
-    marginTop: 16,
-    textTransform: "uppercase",
+    marginTop: 2,
   },
-  expandedContainer: {
-    flex: 1,
+  selectorContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
-  header: {
-    paddingHorizontal: 22,
-    paddingTop: 26,
-  },
-  headerTopRow: {
+  collapsedBar: {
     alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
     flexDirection: "row",
-    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  iconShell: {
-    alignItems: "center",
-    backgroundColor: "#fee2e2",
-    borderRadius: 8,
-    height: 52,
-    justifyContent: "center",
-    width: 52,
+  barFlag: {
+    fontSize: 26,
+    marginRight: 12,
   },
-  list: {
-    paddingHorizontal: 22,
-    paddingVertical: 18,
-    paddingTop: 18,
-  },
-  listWrap: {
-    flex: 1,
-  },
-  subtitle: {
-    color: "#64748b",
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 10,
-    maxWidth: 330,
-  },
-  title: {
+  barName: {
     color: "#0f172a",
-    fontSize: 34,
-    fontWeight: "900",
-    letterSpacing: 0,
-    marginTop: 8,
+    flex: 1,
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  dropdownWrapper: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    marginTop: 6,
+    overflow: "hidden",
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  dropdownRow: {
+    alignItems: "center",
+    borderBottomColor: "#f1f5f9",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
+  dropdownRowActive: {
+    backgroundColor: "#f8fafc",
   },
 });

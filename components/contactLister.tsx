@@ -1,171 +1,122 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   Animated,
-  FlatList,
   Linking,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { useCountry } from "../context/locationcontext";
-import {
-  ContactKind,
-  EmergencyContact,
-  getCountryByCode,
-} from "../models/contact";
+import { ContactKind, EmergencyContact, getCountryByCode } from "../models/contact";
 
-const kindIcons: Record<ContactKind, keyof typeof Ionicons.glyphMap> = {
-  coast: "water",
-  fire: "flame",
-  general: "alert-circle",
+const KIND_ICONS: Record<ContactKind, keyof typeof Ionicons.glyphMap> = {
+  police: "shield",
   medical: "medkit",
-  police: "shield-checkmark",
-  road: "car",
+  fire: "flame",
+  general: "call",
   support: "heart",
+  road: "car",
+  coast: "boat",
 };
 
-const priorityLabels = {
+const PRIORITY_LABELS: Record<EmergencyContact["priority"], string> = {
   critical: "Call first",
   important: "Important",
   useful: "Useful",
 };
 
-const testContact: EmergencyContact = {
-  id: "test-contact",
-  title: "Test Contact",
-  number: "555-0100",
-  subtitle: "Demo number for checking the call button",
-  kind: "support",
-  priority: "useful",
+const PRIORITY_ORDER: Record<EmergencyContact["priority"], number> = {
+  critical: 0,
+  important: 1,
+  useful: 2,
 };
 
-export default function ContactLister() {
-  const { country } = useCountry();
-  const selectedCountry = getCountryByCode(country);
-  const contacts = useMemo(
-    () =>
-      [...(selectedCountry?.contacts ?? []), testContact].sort((a, b) => {
-        const weight = { critical: 0, important: 1, useful: 2 };
-        return weight[a.priority] - weight[b.priority];
-      }),
-    [selectedCountry],
-  );
-
-  if (!selectedCountry) {
-    return null;
+function priorityColors(priority: EmergencyContact["priority"], accent: string) {
+  switch (priority) {
+    case "critical":
+      return { bg: accent + "18", text: accent };
+    case "important":
+      return { bg: "#f59e0b18", text: "#d97706" };
+    case "useful":
+      return { bg: "#64748b18", text: "#64748b" };
   }
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Emergency contacts</Text>
-        <Text style={styles.subtitle}>{selectedCountry.note}</Text>
-      </View>
-
-      <FlatList
-        contentContainerStyle={styles.list}
-        data={contacts}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <ContactCard
-            accent={selectedCountry.accent}
-            contact={item}
-            index={index}
-          />
-        )}
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
-  );
 }
 
 function ContactCard({
-  accent,
   contact,
+  accent,
   index,
 }: {
-  accent: string;
   contact: EmergencyContact;
+  accent: string;
   index: number;
 }) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translate = useRef(new Animated.Value(18)).current;
-  const iconName = kindIcons[contact.kind];
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(18)).current;
 
   useEffect(() => {
+    const delay = index * 80;
     Animated.parallel([
-      Animated.timing(opacity, {
+      Animated.timing(fadeAnim, {
         toValue: 1,
-        delay: 75 * index,
-        duration: 280,
+        duration: 350,
+        delay,
         useNativeDriver: true,
       }),
-      Animated.spring(translate, {
+      Animated.timing(slideAnim, {
         toValue: 0,
-        delay: 75 * index,
-        damping: 16,
-        stiffness: 120,
+        duration: 350,
+        delay,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [index, opacity, translate]);
+  }, [fadeAnim, slideAnim, index]);
 
-  const callContact = () => {
-    const dialable = contact.number.replace(/[^\d+]/g, "");
-    Linking.openURL(`tel:${dialable}`);
-  };
+  const pColors = priorityColors(contact.priority, accent);
 
   return (
     <Animated.View
       style={[
-        styles.contactCard,
+        styles.card,
         {
-          opacity,
-          transform: [{ translateY: translate }],
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
         },
       ]}
     >
       <View style={styles.cardTop}>
-        <View style={[styles.serviceIcon, { backgroundColor: `${accent}18` }]}>
-          <Ionicons name={iconName} size={25} color={accent} />
+        <View style={[styles.iconCircle, { backgroundColor: accent + "15" }]}>
+          <Ionicons
+            name={KIND_ICONS[contact.kind]}
+            size={22}
+            color={accent}
+          />
         </View>
-        <View style={styles.serviceInfo}>
-          <View style={styles.titleRow}>
-            <Text style={styles.contactTitle}>{contact.title}</Text>
-            <View
-              style={[
-                styles.priorityPill,
-                contact.priority === "critical" && styles.criticalPill,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.priorityText,
-                  contact.priority === "critical" && styles.criticalText,
-                ]}
-              >
-                {priorityLabels[contact.priority]}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.contactSubtitle}>{contact.subtitle}</Text>
+        <View style={styles.cardInfo}>
+          <Text style={styles.cardTitle}>{contact.title}</Text>
+          <Text style={styles.cardSubtitle}>{contact.subtitle}</Text>
+        </View>
+        <View style={[styles.badge, { backgroundColor: pColors.bg }]}>
+          <Text style={[styles.badgeText, { color: pColors.text }]}>
+            {PRIORITY_LABELS[contact.priority]}
+          </Text>
         </View>
       </View>
 
-      <View style={styles.callRow}>
-        <Text style={[styles.number, { color: accent }]}>{contact.number}</Text>
+      <View style={styles.cardBottom}>
+        <Text style={styles.phoneNumber}>{contact.number}</Text>
         <Pressable
-          accessibilityLabel={`Call ${contact.title}`}
-          accessibilityRole="button"
-          onPress={callContact}
           style={({ pressed }) => [
             styles.callButton,
-            { backgroundColor: accent, opacity: pressed ? 0.82 : 1 },
+            { backgroundColor: accent },
+            pressed && { opacity: 0.8 },
           ]}
+          onPress={() => Linking.openURL(`tel:${contact.number}`)}
         >
-          <Ionicons name="call" size={19} color="#ffffff" />
+          <Ionicons name="call" size={18} color="#ffffff" />
           <Text style={styles.callText}>Call</Text>
         </Pressable>
       </View>
@@ -173,118 +124,137 @@ function ContactCard({
   );
 }
 
+export default function ContactLister() {
+  const { country } = useCountry();
+  const data = getCountryByCode(country);
+
+  if (!data) return null;
+
+  const sorted = [...data.contacts].sort(
+    (a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
+  );
+
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {data.note ? (
+        <View style={styles.noteBox}>
+          <Ionicons name="information-circle" size={18} color="#64748b" />
+          <Text style={styles.noteText}>{data.note}</Text>
+        </View>
+      ) : null}
+
+      {sorted.map((contact, i) => (
+        <ContactCard
+          key={contact.id}
+          contact={contact}
+          accent={data.accent}
+          index={i}
+        />
+      ))}
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
-  callButton: {
-    alignItems: "center",
-    borderRadius: 8,
-    flexDirection: "row",
-    gap: 8,
-    minHeight: 44,
-    paddingHorizontal: 18,
+  container: {
+    flex: 1,
   },
-  callRow: {
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 32,
+  },
+  noteBox: {
     alignItems: "center",
-    borderTopColor: "#e2e8f0",
+    backgroundColor: "#f1f5f9",
+    borderRadius: 12,
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  noteText: {
+    color: "#475569",
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  card: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    marginBottom: 12,
+    padding: 16,
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  cardTop: {
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  iconCircle: {
+    alignItems: "center",
+    borderRadius: 12,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  cardInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  cardTitle: {
+    color: "#0f172a",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  cardSubtitle: {
+    color: "#64748b",
+    fontSize: 13,
+    marginTop: 2,
+  },
+  badge: {
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  cardBottom: {
+    alignItems: "center",
+    borderTopColor: "#f1f5f9",
     borderTopWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 18,
-    paddingTop: 16,
+    marginTop: 14,
+    paddingTop: 14,
+  },
+  phoneNumber: {
+    color: "#0f172a",
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  callButton: {
+    alignItems: "center",
+    borderRadius: 12,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
   callText: {
     color: "#ffffff",
     fontSize: 15,
-    fontWeight: "800",
-  },
-  cardTop: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-  },
-  contactCard: {
-    backgroundColor: "#ffffff",
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 14,
-    padding: 16,
-    shadowColor: "#0f172a",
-    shadowOffset: { height: 10, width: 0 },
-    shadowOpacity: 0.07,
-    shadowRadius: 18,
-  },
-  contactSubtitle: {
-    color: "#64748b",
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 6,
-  },
-  contactTitle: {
-    color: "#0f172a",
-    flex: 1,
-    fontSize: 17,
-    fontWeight: "900",
-  },
-  container: {
-    backgroundColor: "#f8fafc",
-    flex: 1,
-  },
-  criticalPill: {
-    backgroundColor: "#fee2e2",
-  },
-  criticalText: {
-    color: "#b91c1c",
-  },
-  header: {
-    paddingHorizontal: 22,
-    paddingTop: 8,
-  },
-  list: {
-    padding: 22,
-    paddingTop: 18,
-  },
-  number: {
-    fontSize: 32,
-    fontWeight: "900",
-    letterSpacing: 0,
-  },
-  priorityPill: {
-    backgroundColor: "#f1f5f9",
-    borderRadius: 8,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  priorityText: {
-    color: "#475569",
-    fontSize: 11,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  serviceIcon: {
-    alignItems: "center",
-    borderRadius: 8,
-    height: 50,
-    justifyContent: "center",
-    marginRight: 13,
-    width: 50,
-  },
-  serviceInfo: {
-    flex: 1,
-  },
-  subtitle: {
-    color: "#64748b",
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 9,
-  },
-  title: {
-    color: "#0f172a",
-    fontSize: 28,
-    fontWeight: "900",
-    letterSpacing: 0,
-  },
-  titleRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 10,
+    fontWeight: "700",
   },
 });
